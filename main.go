@@ -1,13 +1,14 @@
 package main
 
 import (
-	"net/http"
+	"log"
 
-	serv "github.com/JennyBashir/final_project/http"
+	serv "final_project/http"
 )
 
 func main() {
-	serv.StartServer()
-	http.HandleFunc(`\`, serv.Handlers)
-
+	err := serv.StartServer()
+	if err != nil {
+		log.Fatal("couldn't start the server", err)
+	}
 }
