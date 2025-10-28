@@ -132,6 +132,10 @@ func NextDate(now time.Time, dstart string, repeat string) (string, error) {
 		if bConv == nil {
 			fmt.Errorf("не указан интервал в днях")
 		}
+
+		var day [32]bool
+		var month [13]bool
+
 		for _, n := range bConv {
 			if n > 31 {
 				fmt.Errorf("недопустимый день месяца")
@@ -145,6 +149,12 @@ func NextDate(now time.Time, dstart string, repeat string) (string, error) {
 		switch {
 		case len(bConv) == 1 || len(cConv) == 0:
 			//переносим на указанное число КАЖДОГО месяца
+			for i := range month {
+				month[i] = true
+				if month[i] == true {
+					date = date.AddDate(0, i, bConv[0])
+				}
+			}
 
 		case len(bConv) == 1 || len(cConv) == 1:
 			//переносим на указанный день УКАЗАННОГО месяца
@@ -152,17 +162,70 @@ func NextDate(now time.Time, dstart string, repeat string) (string, error) {
 			//-2 - предпоследний день месяца
 			//1 - первый день
 			//2 - второй день и тд
+			for j := range day {
+				for i := range month {
+					if bConv[0] < 0 {
+						switch {
+						case bConv[0] == -1:
+
+							day[len(day)-1] = true
+							j = len(day) - 1
+						case bConv[0] == -2:
+							day[len(day)-2] = true
+							j = len(day) - 2
+						}
+					}
+					index := cConv[0]
+					month[index] = true
+					if month[i] == true && day[j] == true {
+						date = date.AddDate(0, i, j)
+					}
+				}
+			}
 
 		case len(bConv) > 1 || len(cConv) == 0:
 			//переносим на все указанные даты КАЖДОГО месяца
-
+			for i := range bConv {
+				for j := range month {
+					switch {
+					case bConv[i] == -1:
+						i = len(day) - 1
+						day[i] = true
+					case bConv[i] == -2:
+						i = len(day) - 2
+						day[i] = true
+					default:
+						day[i] = true
+					}
+					month[j] = true
+					if month[j] == true && day[i] == true {
+						date = date.AddDate(0, j, i)
+					}
+				}
+			}
 		case len(bConv) > 1 || len(cConv) > 1:
 			//переносим на все УКАЗАННЫЕ ДНИ всех указанных месяцев
+			for i := range bConv {
+				for j := range cConv {
+					switch {
+					case bConv[i] == -1:
+						i = len(day) - 1
+						day[i] = true
 
-			//dafault?
+					case bConv[i] == -2:
+						i = len(day) - 2
+						day[i] = true
+					default:
+						day[i] = true
+					}
+					month[j] = true
+					if day[i] == true && month[j] == true {
+						date = date.AddDate(0, j, i)
+					}
+				}
+			}
 		case a != "d" || a != "y" || a != "w" || a != "m":
 			fmt.Errorf("недопустимый символ %s: %w", a, err)
-
 		}
 	}
 	return "", nil
