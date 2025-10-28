@@ -1,232 +1,168 @@
 package api
 
 import (
-	"database/sql"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 )
 
-var now = time.Now()
-
-var flag bool
-
 func afterNow(date, now time.Time) bool {
-	if date.Second() > now.Second() {
-		flag = true
-	}
-	return flag
+	return date.Unix() > now.Unix()
 }
 
-// принимает "время сейчас", исходное время от которого начинается
-// отсчет повторений "20060102" и правило повторений в формате
-// w7 / d 1 / y / m 3 1,2,6 и тд
+func sliceConvert(slice []string) ([]int, error) {
+	var resSlice []int
+	for _, s := range slice {
+		if s == "" {
+			continue
+		}
+		n, err := strconv.Atoi(s)
+		if err != nil {
+			return nil, fmt.Errorf("ошибка конвертации строки в число %w", err)
+		}
+		resSlice = append(resSlice, n)
+	}
+	return resSlice, nil
+}
+
 func NextDate(now time.Time, dstart string, repeat string) (string, error) {
+	if repeat == "" {
+		return "", fmt.Errorf("не указан repeat")
+	}
+
 	date, err := time.Parse("20060102", dstart)
 	if err != nil {
-		fmt.Errorf("не удалось распознать дату %w", err)
+		return "", fmt.Errorf("не удалось распознать дату %w", err)
 	}
-	//разделяю репит на части
+
 	parts := strings.Split(repeat, " ")
-	//части репита
-	a := parts[0]
-	b := parts[1:]
-	c := parts[2:]
-
-	//разделяю части на части
-	bSlice := strings.Split(b[0], ",")
-	cSlice := strings.Split(c[0], ",")
-	//новые слайсы для конвертированных частей
-	bConv := make([]int, 0, 31)
-	cConv := make([]int, 0, 12)
-
-	//конвертация частей
-	for _, num := range bSlice {
-		num, err := strconv.Atoi(num)
-		if err != nil {
-			fmt.Errorf("ошибка конвертации строки в число (дни)")
-		}
-		bConv = append(bConv, num)
+	if len(parts) == 0 {
+		return "", fmt.Errorf("некорректный формат repeat")
 	}
-	for _, nums := range cSlice {
-		nums, err := strconv.Atoi(nums)
-		if err != nil {
-			fmt.Errorf("ошибка конвертации строки в число (месяцы)")
-		}
-		cConv = append(cConv, nums)
+
+	var a, b, c string
+	if len(parts) == 1 {
+		a = parts[0]
 	}
-	switch {
-	case repeat == "":
-		_, err := db.Exec("DELETE FROM scheduler WHERE repeat = :repeat", sql.Named("repeat", repeat))
-		if err != nil {
-			fmt.Errorf("не удалось удалить задачу")
+	if len(parts) == 2 {
+		a = parts[0]
+		b = parts[1]
+	}
+	if len(parts) == 3 {
+		a = parts[0]
+		b = parts[1]
+		c = parts[2]
+	}
+	if len(parts) > 3 {
+		return "", fmt.Errorf("некорректный формат ввода %s", repeat)
+	}
+
+	bSlice := strings.Split(b, ",")
+	cSlice := strings.Split(c, ",")
+
+	bConv, err := sliceConvert(bSlice)
+	if err != nil {
+		return "", fmt.Errorf("days %w", err)
+	}
+
+	cConv, err := sliceConvert(cSlice)
+	if err != nil {
+		return "", fmt.Errorf("months %w", err)
+	}
+
+	switch a {
+	case "d":
+		if len(bConv) == 0 {
+			return "", fmt.Errorf("не указан интервал в днях")
 		}
-		return "", nil
-	case a == "d":
-		if bConv == nil {
-			fmt.Errorf("не указан интервал в днях")
+		if bConv[0] > 400 {
+			return "", fmt.Errorf("превышен максимально допустимый интервал")
+		}
+
+		for !afterNow(date, now) {
+			date = date.AddDate(0, 0, bConv[0])
+		}
+		return date.Format("20060102"), nil
+
+	case "y":
+		for !afterNow(date, now) {
+			date = date.AddDate(1, 0, 0)
+		}
+		return date.Format("20060102"), nil
+
+	case "w":
+		if len(bConv) == 0 {
+			return "", fmt.Errorf("не указан интервал в днях недели")
 		}
 		for _, n := range bConv {
-			if n > 400 {
-				fmt.Errorf("превышен максимально допустимый интервал")
+			if n < 1 || n > 7 {
+				return "", fmt.Errorf("недопустимое значение дня недели %d", n)
 			}
-			for {
-				date = date.AddDate(0, 0, n)
-				if afterNow(date, now) {
-					break
-				}
-
-			}
-			return "", nil
 		}
-	case a == "y":
-		for {
-			date = date.AddDate(1, 0, 0)
-			if afterNow(date, now) {
+		for !afterNow(date, now) {
+			curW := int(date.Weekday())
+			if curW == 0 {
+				curW = 7
+			}
+			found := false
+			for _, n := range bConv {
+				if n == curW {
+					found = true
+				}
+			}
+			if found {
 				break
 			}
-			return "", nil
+			date = date.AddDate(0, 0, 1)
 		}
-	case a == "w":
-		if bConv == nil {
-			fmt.Errorf("не указан интервал в днях недели")
-		}
-		for _, n := range bConv {
-			if n > 7 {
-				fmt.Errorf("недопустимое значение дня недели")
-			}
-			if len(bConv) == 1 {
-				//переносим на конкретный день недели
-				// 1-пн, 2-вт, 3-ср, 4-чт, 5-пт, 6-сб, 7-вс
-				weekDays := []time.Weekday{time.Monday, time.Tuesday, time.Wednesday, time.Thursday, time.Friday, time.Saturday, time.Sunday}
-				day := weekDays[0]
-				switch {
-				case bConv[0] == 1:
-					day = weekDays[0]
-				case bConv[0] == 2:
-					day = weekDays[1]
-				case bConv[0] == 3:
-					day = weekDays[2]
-				case bConv[0] == 4:
-					day = weekDays[3]
-				case bConv[0] == 5:
-					day = weekDays[4]
-				case bConv[0] == 6:
-					day = weekDays[5]
-				case bConv[0] == 7:
-					day = weekDays[6]
-				}
-				res := (int(day) - int(date.Weekday()) + 7) % 7
-				if res == 0 {
-					res = 7
-				}
-				date = date.AddDate(0, 0, res)
-			}
-		}
-		if len(bConv) > 1 {
-			//переносим на любой из указанных дней
-		}
+		return date.Format("20060102"), nil
 
-	case a == "m":
-		if bConv == nil {
-			fmt.Errorf("не указан интервал в днях")
+	case "m":
+		if len(bConv) == 0 {
+			return "", fmt.Errorf("не указан интервал в днях %w", err)
 		}
 
 		var day [32]bool
 		var month [13]bool
 
 		for _, n := range bConv {
-			if n > 31 {
-				fmt.Errorf("недопустимый день месяца")
+			if n < -2 || n > 31 {
+				return "", fmt.Errorf("недопустимый день месяца: %d", n)
+			}
+			switch n {
+			case -1:
+				day[len(day)-1] = true
+			case -2:
+				day[len(day)-2] = true
+			default:
+				day[n] = true
 			}
 		}
-		for _, m := range cConv {
-			if m > 12 {
-				fmt.Errorf("недопустимый месяц")
-			}
-		}
-		switch {
-		case len(bConv) == 1 || len(cConv) == 0:
-			//переносим на указанное число КАЖДОГО месяца
-			for i := range month {
+
+		if len(cConv) == 0 {
+			for i := 1; i <= 12; i++ {
 				month[i] = true
-				if month[i] == true {
-					date = date.AddDate(0, i, bConv[0])
-				}
 			}
-
-		case len(bConv) == 1 || len(cConv) == 1:
-			//переносим на указанный день УКАЗАННОГО месяца
-			//-1 - последний день месяца
-			//-2 - предпоследний день месяца
-			//1 - первый день
-			//2 - второй день и тд
-			for j := range day {
-				for i := range month {
-					if bConv[0] < 0 {
-						switch {
-						case bConv[0] == -1:
-
-							day[len(day)-1] = true
-							j = len(day) - 1
-						case bConv[0] == -2:
-							day[len(day)-2] = true
-							j = len(day) - 2
-						}
-					}
-					index := cConv[0]
-					month[index] = true
-					if month[i] == true && day[j] == true {
-						date = date.AddDate(0, i, j)
-					}
+		} else {
+			for _, m := range cConv {
+				if m < 1 || m > 12 {
+					return "", fmt.Errorf("недопустимый месяц: %d", m)
 				}
+				month[m] = true
 			}
-
-		case len(bConv) > 1 || len(cConv) == 0:
-			//переносим на все указанные даты КАЖДОГО месяца
-			for i := range bConv {
-				for j := range month {
-					switch {
-					case bConv[i] == -1:
-						i = len(day) - 1
-						day[i] = true
-					case bConv[i] == -2:
-						i = len(day) - 2
-						day[i] = true
-					default:
-						day[i] = true
-					}
-					month[j] = true
-					if month[j] == true && day[i] == true {
-						date = date.AddDate(0, j, i)
-					}
-				}
-			}
-		case len(bConv) > 1 || len(cConv) > 1:
-			//переносим на все УКАЗАННЫЕ ДНИ всех указанных месяцев
-			for i := range bConv {
-				for j := range cConv {
-					switch {
-					case bConv[i] == -1:
-						i = len(day) - 1
-						day[i] = true
-
-					case bConv[i] == -2:
-						i = len(day) - 2
-						day[i] = true
-					default:
-						day[i] = true
-					}
-					month[j] = true
-					if day[i] == true && month[j] == true {
-						date = date.AddDate(0, j, i)
-					}
-				}
-			}
-		case a != "d" || a != "y" || a != "w" || a != "m":
-			fmt.Errorf("недопустимый символ %s: %w", a, err)
 		}
+		for !afterNow(date, now) {
+			date = date.AddDate(0, 0, 1)
+			d := date.Day()
+			m := int(date.Month())
+			if d < len(day) && day[d] && month[m] {
+				break
+			}
+		}
+		return date.Format("20060102"), nil
+
+	default:
+		return "", fmt.Errorf("недопустимый символ %s", a)
 	}
-	return "", nil
 }
