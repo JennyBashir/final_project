@@ -189,7 +189,22 @@ func NextDate(now time.Time, dstart string, repeat string) (string, error) {
 			if afterNow(date, now) {
 				d := date.Day()
 				m := int(date.Month())
-				if d < len(day) && day[d] && month[m] {
+
+				if !month[m] {
+					continue
+				}
+				lastDay := time.Date(date.Year(), date.Month()+1, 0, 0, 0, 0, 0, date.Location()).Day()
+				secondLastDay := lastDay - 1
+
+				isRegularDay := d < len(day) && day[d]
+				isLastDay := day[len(day)-1] && d == lastDay
+				isSecondLastDay := day[len(day)-2] && d == secondLastDay
+
+				if day[31] && d == lastDay && lastDay < 31 {
+					date = time.Date(date.Year(), date.Month()+1, 0, 0, 0, 0, 0, date.Location())
+					continue
+				}
+				if isRegularDay || isLastDay || isSecondLastDay {
 					break
 				}
 			}
