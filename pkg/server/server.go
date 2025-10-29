@@ -7,9 +7,12 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+
+	api "final_project/pkg/api"
 )
 
 func StartServer() error {
+	api.Init()
 	log.Println("starting the server")
 
 	port := os.Getenv("TODO_PORT")

@@ -2,6 +2,8 @@ package api
 
 import (
 	"fmt"
+	"io"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -24,6 +26,33 @@ func sliceConvert(slice []string) ([]int, error) {
 		resSlice = append(resSlice, n)
 	}
 	return resSlice, nil
+}
+
+func nextDayHandler(w http.ResponseWriter, req *http.Request) {
+	//layout не забыть сделать const
+	layout := "20060102"
+	var err error
+	var now time.Time
+	n := req.FormValue("now")
+	if req.FormValue("now") == "" {
+		now = time.Now()
+	}
+	//строку -> в time.Time
+	now, err = time.Parse(layout, n)
+	if err != nil {
+		err = fmt.Errorf("не удалось распознать текущее время %s %w", n, err)
+		_, err = fmt.Fprint(w, err) //
+	}
+
+	stringResponse, err := NextDate(now, req.FormValue("date"), req.FormValue("repeat"))
+	if err != nil {
+		err = fmt.Errorf("не удалось получить новую дату %w", err)
+		_, err = fmt.Fprint(w, err)
+	}
+	_, err = io.WriteString(w, stringResponse)
+	if err != nil {
+		_, err = fmt.Fprint(w, err)
+	}
 }
 
 func NextDate(now time.Time, dstart string, repeat string) (string, error) {
@@ -80,14 +109,20 @@ func NextDate(now time.Time, dstart string, repeat string) (string, error) {
 			return "", fmt.Errorf("превышен максимально допустимый интервал")
 		}
 
-		for !afterNow(date, now) {
+		for {
 			date = date.AddDate(0, 0, bConv[0])
+			if afterNow(date, now) {
+				break
+			}
 		}
 		return date.Format("20060102"), nil
 
 	case "y":
-		for !afterNow(date, now) {
+		for {
 			date = date.AddDate(1, 0, 0)
+			if afterNow(date, now) {
+				break
+			}
 		}
 		return date.Format("20060102"), nil
 
@@ -100,23 +135,20 @@ func NextDate(now time.Time, dstart string, repeat string) (string, error) {
 				return "", fmt.Errorf("недопустимое значение дня недели %d", n)
 			}
 		}
-		for !afterNow(date, now) {
-			curW := int(date.Weekday())
-			if curW == 0 {
-				curW = 7
-			}
-			found := false
-			for _, n := range bConv {
-				if n == curW {
-					found = true
+		for {
+			date = date.AddDate(0, 0, 1)
+			if afterNow(date, now) {
+				curW := int(date.Weekday())
+				if curW == 0 {
+					curW = 7
+				}
+				for _, n := range bConv {
+					if n == curW {
+						return date.Format("20060102"), nil
+					}
 				}
 			}
-			if found {
-				break
-			}
-			date = date.AddDate(0, 0, 1)
 		}
-		return date.Format("20060102"), nil
 
 	case "m":
 		if len(bConv) == 0 {
@@ -152,12 +184,14 @@ func NextDate(now time.Time, dstart string, repeat string) (string, error) {
 				month[m] = true
 			}
 		}
-		for !afterNow(date, now) {
+		for {
 			date = date.AddDate(0, 0, 1)
-			d := date.Day()
-			m := int(date.Month())
-			if d < len(day) && day[d] && month[m] {
-				break
+			if afterNow(date, now) {
+				d := date.Day()
+				m := int(date.Month())
+				if d < len(day) && day[d] && month[m] {
+					break
+				}
 			}
 		}
 		return date.Format("20060102"), nil
