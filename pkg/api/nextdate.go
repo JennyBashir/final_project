@@ -108,6 +108,9 @@ func NextDate(now time.Time, dstart string, repeat string) (string, error) {
 		if bConv[0] > 400 {
 			return "", fmt.Errorf("превышен максимально допустимый интервал")
 		}
+		if bConv[0] == 1 && !afterNow(date, now) {
+			return now.Format("20060102"), nil
+		}
 
 		for {
 			date = date.AddDate(0, 0, bConv[0])
