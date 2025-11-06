@@ -14,7 +14,7 @@ func taskHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPost:
 		addTaskHandler(w, r)
 	case http.MethodGet:
-		//
+		tasksHandler(w, r)
 	case http.MethodDelete:
 		//
 	default:
