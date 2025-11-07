@@ -3,10 +3,11 @@ package api
 import (
 	"bytes"
 	"encoding/json"
-	"final_project/pkg/db"
 	"fmt"
 	"net/http"
 	"time"
+
+	"final_project/pkg/db"
 )
 
 func taskHandler(w http.ResponseWriter, r *http.Request) {
@@ -14,7 +15,9 @@ func taskHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPost:
 		addTaskHandler(w, r)
 	case http.MethodGet:
-		tasksHandler(w, r)
+		getHandler(w, r)
+	case http.MethodPut:
+		putHandler(w, r)
 	case http.MethodDelete:
 		//
 	default:

@@ -99,3 +99,52 @@ func Tasks(limit int, search string) ([]*Task, error) {
 
 	return tasks, nil
 }
+
+func GetTask(id string) (*Task, error) {
+	//по указанному id возвратит структуру или указатель
+	//на структуру Task. Так как нужно получить только одну
+	//запись, то нужно использовать метод
+	//QueryRow() — err := db.QueryRow(...).Scan(...).
+	row := db.QueryRow("SELECT id, date, title, comment, repeat FROM scheduler WHERE id = :id",
+		sql.Named("id", id))
+	//переменные куда запишется результат скана
+	var iD int64
+	var date, title, comment, repeat string
+	//сканируем и записываем в переменные
+	err := row.Scan(&iD, &date, &title, &comment, &repeat)
+	if err != nil {
+		return nil, fmt.Errorf("не удалось просканировать данные")
+	}
+	//заполняем структуру данными
+	task := &Task{
+		ID:      iD,
+		Date:    date,
+		Title:   title,
+		Comment: comment,
+		Repeat:  repeat,
+	}
+	//возвращаем структуру
+	return task, nil
+}
+
+func UpdateTask(task *Task) error {
+	query := "UPDATE scheduler SET title = :title, date = :date, comment = :comment, repeat = :repeat WHERE id = :id"
+	res, err := db.Exec(query,
+		sql.Named("title", task.Title),
+		sql.Named("date", task.Date),
+		sql.Named("comment", task.Comment),
+		sql.Named("repeat", task.Repeat),
+		sql.Named("id", task.ID))
+	if err != nil {
+		return err
+	}
+
+	count, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		return fmt.Errorf(`incorrect id for updating task`)
+	}
+	return nil
+}
