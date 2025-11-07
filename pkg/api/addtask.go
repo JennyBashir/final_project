@@ -19,7 +19,7 @@ func taskHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPut:
 		putHandler(w, r)
 	case http.MethodDelete:
-		//
+		deleteHandler(w, r)
 	default:
 		http.Error(w, "метод не определен", http.StatusMethodNotAllowed)
 	}
@@ -36,17 +36,14 @@ func checkDate(task *db.Task) error {
 	if err != nil {
 		return fmt.Errorf("некорректная дата, формат отличается от 20060102")
 	}
-	var next string
-	if task.Repeat != "" {
-		next, err = NextDate(now, task.Date, task.Repeat)
-		if err != nil {
-			return fmt.Errorf("не удалось просчитать следующую дату для задачи %s %w", task.Title, err)
-		}
-	}
-	if afterNow(now, t) {
+	if t.Format("20060102") < today {
 		if task.Repeat == "" {
-			task.Date = now.Format("20060102")
+			task.Date = today
 		} else {
+			next, err := NextDate(now, task.Date, task.Repeat)
+			if err != nil {
+				return err
+			}
 			task.Date = next
 		}
 	}

@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -101,21 +102,22 @@ func Tasks(limit int, search string) ([]*Task, error) {
 }
 
 func GetTask(id string) (*Task, error) {
-	//по указанному id возвратит структуру или указатель
-	//на структуру Task. Так как нужно получить только одну
-	//запись, то нужно использовать метод
-	//QueryRow() — err := db.QueryRow(...).Scan(...).
+	i, err := strconv.Atoi(id)
+	if err != nil {
+		return nil, fmt.Errorf("не удалось преобразование int -> string")
+	}
+	ii := int64(i)
 	row := db.QueryRow("SELECT id, date, title, comment, repeat FROM scheduler WHERE id = :id",
-		sql.Named("id", id))
-	//переменные куда запишется результат скана
+		sql.Named("id", ii))
+
 	var iD int64
 	var date, title, comment, repeat string
-	//сканируем и записываем в переменные
-	err := row.Scan(&iD, &date, &title, &comment, &repeat)
+
+	err = row.Scan(&iD, &date, &title, &comment, &repeat)
 	if err != nil {
 		return nil, fmt.Errorf("не удалось просканировать данные")
 	}
-	//заполняем структуру данными
+
 	task := &Task{
 		ID:      iD,
 		Date:    date,
@@ -123,7 +125,7 @@ func GetTask(id string) (*Task, error) {
 		Comment: comment,
 		Repeat:  repeat,
 	}
-	//возвращаем структуру
+
 	return task, nil
 }
 
@@ -145,6 +147,46 @@ func UpdateTask(task *Task) error {
 	}
 	if count == 0 {
 		return fmt.Errorf(`incorrect id for updating task`)
+	}
+	return nil
+}
+
+func DeleteTask(id string) error {
+	i, err := strconv.Atoi(id)
+	if err != nil {
+		return fmt.Errorf("не удалось преобразование int -> string")
+	}
+	ii := int64(i)
+
+	query := "DELETE FROM scheduler WHERE id = :id"
+
+	_, err = db.Exec(query,
+		sql.Named("id", ii))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func UpdateDate(next, id string) error {
+	i, err := strconv.Atoi(id)
+	if err != nil {
+		return fmt.Errorf("не удалось преобразование int -> string")
+	}
+	ii := int64(i)
+	query := "UPDATE scheduler SET date = :date WHERE id = :id"
+	res, err := db.Exec(query,
+		sql.Named("date", next),
+		sql.Named("id", ii))
+	if err != nil {
+		return err
+	}
+	count, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		return fmt.Errorf("задача с id %s не найдена", id)
 	}
 	return nil
 }

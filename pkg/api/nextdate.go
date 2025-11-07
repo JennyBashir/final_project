@@ -10,7 +10,7 @@ import (
 )
 
 func afterNow(date, now time.Time) bool {
-	return date.Unix() > now.Unix()
+	return date.Format("20060102") > now.Format("20060102")
 }
 
 func sliceConvert(slice []string) ([]int, error) {
@@ -111,7 +111,6 @@ func NextDate(now time.Time, dstart string, repeat string) (string, error) {
 		if bConv[0] == 1 && !afterNow(date, now) {
 			return now.Format("20060102"), nil
 		}
-
 		for {
 			date = date.AddDate(0, 0, bConv[0])
 			if afterNow(date, now) {
@@ -119,7 +118,6 @@ func NextDate(now time.Time, dstart string, repeat string) (string, error) {
 			}
 		}
 		return date.Format("20060102"), nil
-
 	case "y":
 		for {
 			date = date.AddDate(1, 0, 0)
