@@ -19,7 +19,7 @@ type Task struct {
 func AddTask(task *Task) (int64, error) {
 	var id int64
 	if db == nil {
-		return 0, fmt.Errorf("база данных недоступна")
+		return 0, fmt.Errorf("the database is unavailable")
 	}
 
 	res, err := db.Exec("INSERT INTO scheduler (date, title, comment, repeat) VALUES (:date, :title, :comment, :repeat)",
@@ -30,19 +30,22 @@ func AddTask(task *Task) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
+
 	id, err = res.LastInsertId()
 	if err != nil {
 		return 0, err
 	}
+
 	return id, nil
 }
 
 func Tasks(limit int, search string) ([]*Task, error) {
 	if db == nil {
-		return nil, fmt.Errorf("база данных недоступна")
+		return nil, fmt.Errorf("the database is unavailable")
 	}
 
 	search = strings.TrimSpace(search)
+
 	var tRows *sql.Rows
 	var err error
 
@@ -70,6 +73,7 @@ func Tasks(limit int, search string) ([]*Task, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	defer tRows.Close()
 
 	var tasks []*Task
@@ -90,6 +94,7 @@ func Tasks(limit int, search string) ([]*Task, error) {
 			Repeat:  repeat,
 		})
 	}
+
 	if err := tRows.Err(); err != nil {
 		return nil, err
 	}
@@ -102,10 +107,12 @@ func Tasks(limit int, search string) ([]*Task, error) {
 }
 
 func GetTask(id string) (*Task, error) {
+
 	i, err := strconv.Atoi(id)
 	if err != nil {
-		return nil, fmt.Errorf("не удалось преобразование int -> string")
+		return nil, fmt.Errorf("int -> string conversion failed")
 	}
+
 	ii := int64(i)
 	row := db.QueryRow("SELECT id, date, title, comment, repeat FROM scheduler WHERE id = :id",
 		sql.Named("id", ii))
@@ -114,8 +121,11 @@ func GetTask(id string) (*Task, error) {
 	var date, title, comment, repeat string
 
 	err = row.Scan(&iD, &date, &title, &comment, &repeat)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("task not found")
+	}
 	if err != nil {
-		return nil, fmt.Errorf("не удалось просканировать данные")
+		return nil, fmt.Errorf("failed to read task: %w", err)
 	}
 
 	task := &Task{
@@ -131,6 +141,7 @@ func GetTask(id string) (*Task, error) {
 
 func UpdateTask(task *Task) error {
 	query := "UPDATE scheduler SET title = :title, date = :date, comment = :comment, repeat = :repeat WHERE id = :id"
+
 	res, err := db.Exec(query,
 		sql.Named("title", task.Title),
 		sql.Named("date", task.Date),
@@ -148,31 +159,42 @@ func UpdateTask(task *Task) error {
 	if count == 0 {
 		return fmt.Errorf(`incorrect id for updating task`)
 	}
+
 	return nil
 }
 
 func DeleteTask(id string) error {
 	i, err := strconv.Atoi(id)
 	if err != nil {
-		return fmt.Errorf("не удалось преобразование int -> string")
+		return fmt.Errorf("int -> string conversion failed")
 	}
-	ii := int64(i)
 
+	ii := int64(i)
 	query := "DELETE FROM scheduler WHERE id = :id"
 
-	_, err = db.Exec(query,
+	res, err := db.Exec(query,
 		sql.Named("id", ii))
 	if err != nil {
 		return err
 	}
+
+	count, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to check deletion: %w", err)
+	}
+	if count == 0 {
+		return fmt.Errorf("task not found")
+	}
+
 	return nil
 }
 
 func UpdateDate(next, id string) error {
 	i, err := strconv.Atoi(id)
 	if err != nil {
-		return fmt.Errorf("не удалось преобразование int -> string")
+		return fmt.Errorf("int -> string conversion failed")
 	}
+
 	ii := int64(i)
 	query := "UPDATE scheduler SET date = :date WHERE id = :id"
 	res, err := db.Exec(query,
@@ -181,12 +203,14 @@ func UpdateDate(next, id string) error {
 	if err != nil {
 		return err
 	}
+
 	count, err := res.RowsAffected()
 	if err != nil {
 		return err
 	}
 	if count == 0 {
-		return fmt.Errorf("задача с id %s не найдена", id)
+		return fmt.Errorf("task with id %s not found", id)
 	}
+
 	return nil
 }

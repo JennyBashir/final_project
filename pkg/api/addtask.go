@@ -13,6 +13,7 @@ import (
 func taskHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodPost:
+
 		addTaskHandler(w, r)
 	case http.MethodGet:
 		getHandler(w, r)
@@ -21,10 +22,10 @@ func taskHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodDelete:
 		deleteHandler(w, r)
 	default:
-		http.Error(w, "метод не определен", http.StatusMethodNotAllowed)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
-
 }
+
 func checkDate(task *db.Task) error {
 	now := time.Now()
 	today := now.Format("20060102")
@@ -32,10 +33,12 @@ func checkDate(task *db.Task) error {
 		task.Date = today
 		return nil
 	}
+
 	t, err := time.Parse("20060102", task.Date)
 	if err != nil {
-		return fmt.Errorf("некорректная дата, формат отличается от 20060102")
+		return fmt.Errorf("incorrect date, format differs from 20060102")
 	}
+
 	if t.Format("20060102") < today {
 		if task.Repeat == "" {
 			task.Date = today
@@ -55,44 +58,48 @@ func writeJson(w http.ResponseWriter, data any) {
 
 	resp, err := json.Marshal(data)
 	if err != nil {
-		http.Error(w, "не удалось преобразовать ответ в json", http.StatusInternalServerError)
+		http.Error(w, "couldn't convert the response to json", http.StatusInternalServerError)
 		return
 	}
 	_, err = w.Write(resp)
 	if err != nil {
-		http.Error(w, "не удалось отправить ответ", http.StatusInternalServerError)
+		http.Error(w, "couldn't send reply", http.StatusInternalServerError)
 		return
 	}
 }
 
 func addTaskHandler(w http.ResponseWriter, r *http.Request) {
 	var task db.Task
-
 	var buf bytes.Buffer
 
 	_, err := buf.ReadFrom(r.Body)
 	if err != nil {
-		writeJson(w, map[string]string{"error": "не удалось прочитать тело запроса"})
+		writeJson(w, map[string]string{"error": "couldn't read the request body"})
 		return
 	}
+
 	err = json.Unmarshal(buf.Bytes(), &task)
 	if err != nil {
-		writeJson(w, map[string]string{"error": "не удалось прочитать запрос"})
+		writeJson(w, map[string]string{"error": "couldn't read the request"})
 		return
 	}
+
 	if task.Title == "" {
-		writeJson(w, map[string]string{"error": "не указан заголовок"})
+		writeJson(w, map[string]string{"error": "the title is not specified"})
 		return
 	}
+
 	err = checkDate(&task)
 	if err != nil {
-		writeJson(w, map[string]string{"error": "некорректный формат запроса"})
+		writeJson(w, map[string]string{"error": "incorrect request format"})
 		return
 	}
+
 	id, err := db.AddTask(&task)
 	if err != nil {
-		writeJson(w, map[string]string{"error": "не удалось добавить задачу в базу данных"})
+		writeJson(w, map[string]string{"error": "couldn't add a task to the database"})
 		return
 	}
+
 	writeJson(w, map[string]string{"id": fmt.Sprintf("%d", id)})
 }

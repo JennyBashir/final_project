@@ -15,7 +15,7 @@ func tasksHandler(w http.ResponseWriter, r *http.Request) {
 
 	tasks, err := db.Tasks(50, search)
 	if err != nil {
-		writeJson(w, map[string]string{"error": "не удалось получить ближайшие задачи"})
+		writeJson(w, map[string]string{"error": "couldn't get the next tasks"})
 		return
 	}
 
